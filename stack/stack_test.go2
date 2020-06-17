@@ -1,0 +1,28 @@
+package main
+
+import (
+	"testing"
+)
+
+func Test_intStack(t *testing.T) {
+	slice := make([]int, 0)
+	stack := stack(int)(slice)
+
+	stack.Push(0)
+	stack.Push(1)
+	stack.Push(2)
+
+	if v, ok := stack.Pop(); v != 2 || !ok {
+		t.Errorf("stack.Pop() = %v, %v, want 2, true", v, ok)
+	}
+	if v, ok := stack.Pop(); v != 1 || !ok {
+		t.Errorf("stack.Pop() = %v, %v, want 1, true", v, ok)
+	}
+	if v, ok := stack.Pop(); v != 0 || !ok {
+		t.Errorf("stack.Pop() = %v, %v, want 0, true", v, ok)
+	}
+
+	if v, ok := stack.Pop(); v != 0 || ok {
+		t.Errorf("stack.Pop() = %v, %v, want 0, false", v, ok)
+	}
+}
