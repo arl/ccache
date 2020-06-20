@@ -1,0 +1,94 @@
+// https://go2goplay.golang.org/p/Y_sFHpcSK61
+
+package main
+
+import (
+	"fmt"
+)
+
+type iterator(type T) interface {
+	prev()
+	cur() T
+	set(T)
+	next()
+
+	valid() bool
+}
+
+// vec
+type vec(type T) struct {
+	s []T
+}
+
+func newVec(type T)(s []T) vec(T) {
+	return vec(T){s: s}
+}
+
+func (v vec(T)) begin() iterator(T) {
+	return &vecIter(T){idx: 0, v: v}
+}
+
+func (v vec(T)) end() iterator(T) {
+	return &vecIter(T){idx: len(v.s) - 1, v: v}
+}
+
+// vec iterator
+type vecIter(type T) struct {
+	idx int
+	v   vec(T)
+}
+
+func (it vecIter(T)) cur() T  { return it.v.s[it.idx] }
+func (it vecIter(T)) set(t T) { it.v.s[it.idx] = t }
+func (it *vecIter(T)) prev()  { it.idx-- }
+func (it *vecIter(T)) next()  { it.idx++ }
+
+func (it vecIter(T)) valid() bool {
+	return it.idx >= 0 && it.idx < len(it.v.s)
+}
+
+type forwardIterable(type T) interface {
+	begin() iterator(T)
+	end() iterator(T)
+}
+
+type bidirectionnalIterable(type T) interface {
+	begin() iterator(T)
+	end() iterator(T)
+
+	rbegin() iterator(T)
+	rend() iterator(T)
+}
+
+
+// algorithms
+func reverse(type T)(ret, src forwardIterable(T)) {
+	retend := ret.end()
+	for srcIt := src.begin(); srcIt.valid(); srcIt.next() {
+		val := srcIt.cur()
+		fmt.Println(val)
+		retend.set(val)
+		retend.prev()
+	}
+}
+
+func main() {
+	s := [4]byte{0, 1, 2, 3}
+	v := newVec(byte)(s[:])
+	fmt.Println(v)
+
+	fmt.Println("original")
+	for it := v.begin(); it.valid(); it.next() {
+		val := it.cur()
+		fmt.Println(val)
+	}
+
+	fmt.Println("reverse")
+	var r [4]byte
+	vr := newVec(byte)(r[:])
+
+	// reverse(vr, v) // doesn't compile: "type vec(byte) of vr does not match forwardIterable(T)"
+	reverse(byte)(vr, v) // this does
+	fmt.Println(vr)
+}
+
