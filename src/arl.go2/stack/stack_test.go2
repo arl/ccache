@@ -6,7 +6,7 @@ import (
 
 func Test_intStack(t *testing.T) {
 	slice := make([]int, 0)
-	stack := stack(int)(slice)
+	stack := Stack(int)(slice)
 
 	stack.Push(0)
 	stack.Push(1)
