@@ -26,15 +26,11 @@ type policy (type K comparable, V any) interface {
 	init(cache *Cache(K, V), maximumSize int)
 	add(*entry(K, V)) *entry(K, V)
 	del(*entry(K, V)) *entry(K, V)
-	// hit(element *list.Element)
-	// remove(element *list.Element) *entry
-	// walk(func(list *list.List))
+	add(*entry(K, V))
 }
 
 // LRU is a least-frequently-used policy.
-type LRU (type K comparable, V any) struct {
-
-}
+type LRU (type K comparable, V any) struct {}
 
 type Cache (type K comparable, V any) struct{
 	policy policy(K, V)
