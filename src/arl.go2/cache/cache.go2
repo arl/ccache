@@ -1,0 +1,45 @@
+package cache
+
+// entry stores cached entry key and value.
+type entry (type K comparable, V any) struct {
+	key   K
+	value V
+
+	// accessed is the number of nanoseconds elapsed between the cache epoch and the last time the key was accessed.
+	accessed uint64
+	// updated is the number of nanoseconds elapsed between the cache epoch and the last time the key was updated.
+	updated uint64
+	// // listID is ID of the list which this entry is currently in.
+	// listID listID
+	// hash of this key
+	hash uint64
+}
+
+
+// any is a convenient type bounds.
+type any interface{}
+
+// policy is a cache eviction policy.
+type policy (type K comparable, V any) interface {
+	init(cache *Cache(K, V), maximumSize int)
+	add(*entry(K, V)) *entry(K, V)
+	del(*entry(K, V)) *entry(K, V)
+	// hit(element *list.Element)
+	// remove(element *list.Element) *entry
+	// walk(func(list *list.List))
+}
+
+// LRU is a least-frequently-used policy.
+type LRU (type K comparable, V any) struct {
+
+}
+
+type Cache (type K comparable, V any) struct{
+	policy policy(K, V)
+}
+
+func New(type K comparable, V any) (maxkeys uint64, p policy(K, V) ) Cache(K, V) {
+	return Cache(K, V){
+		policy: p,
+	}
+}

@@ -3,10 +3,11 @@ package main
 import (
 	"fmt"
 
+	"arl.go2/cache"
 	"arl.go2/stack"
 )
 
-func main() {
+func stackExample() {
 	s := make(stack.Stack(int), 0)
 	s.Push(0)
 	s.Push(1)
@@ -14,4 +15,16 @@ func main() {
 	s.Pop()
 
 	fmt.Println(s)
+}
+
+func cacheExample() {
+	lru := cache.LRU(int, string){}
+	c := cache.New(256, lru)
+
+	fmt.Println(lru, c)
+}
+
+func main() {
+	//	stackExample()
+	cacheExample()
 }
