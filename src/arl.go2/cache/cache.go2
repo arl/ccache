@@ -1,7 +1,7 @@
 package cache
 
 // entry stores cached entry key and value.
-type entry (type K comparable, V any) struct {
+type entry(type K comparable, V any) struct {
 	key   K
 	value V
 
@@ -15,12 +15,11 @@ type entry (type K comparable, V any) struct {
 	hash uint64
 }
 
-
 // any is a convenient type bounds.
 type any interface{}
 
 // policy is a cache eviction policy.
-type policy (type K comparable, V any) interface {
+type policy(type K comparable, V any) interface {
 	init(cache *Cache(K, V), maximumSize int)
 	add(*entry(K, V)) *entry(K, V)
 	del(*entry(K, V)) *entry(K, V)
@@ -30,15 +29,17 @@ type policy (type K comparable, V any) interface {
 }
 
 // LRU is a least-frequently-used policy.
-type LRU (type K comparable, V any) struct {
+type LRU(type K comparable, V any) struct{}
 
-}
+func (p *LRU(K, V)) init(cache *Cache(K, V), maximumSize int) {}
+func (p *LRU(K, V)) add(*entry(K, V)) *entry(K, V)            { return nil }
+func (p *LRU(K, V)) del(*entry(K, V)) *entry(K, V)            { return nil }
 
-type Cache (type K comparable, V any) struct{
+type Cache(type K comparable, V any) struct {
 	policy policy(K, V)
 }
 
-func New(type K comparable, V any) (maxkeys uint64, p policy(K, V) ) Cache(K, V) {
+func NewCache(type K comparable, V any)(maxkeys uint64, p policy(K, V)) Cache(K, V) {
 	return Cache(K, V){
 		policy: p,
 	}
