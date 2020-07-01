@@ -1,0 +1,17 @@
+package stack
+
+type Stack(type T) []T
+
+func (s *Stack(T)) Push(x T) {
+	*s = append(*s, x)
+}
+
+func (s *Stack(T)) Pop() (t T,ok bool) {	
+	if len(*s)==0 {
+		return t, false
+	}
+
+	t = (*s)[len(*s)-1]
+	*s = (*s)[:len(*s)-1]
+	return t, true
+}
