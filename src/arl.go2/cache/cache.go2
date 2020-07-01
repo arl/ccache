@@ -1,5 +1,7 @@
 package cache
 
+import "list"
+
 // entry stores cached entry key and value.
 type entry(type K comparable, V any) struct {
 	key   K
@@ -29,7 +31,11 @@ type policy(type K comparable, V any) interface {
 }
 
 // LRU is a least-frequently-used policy.
-type LRU(type K comparable, V any) struct{}
+type LRU(type K comparable, V any) struct {
+	c   *Cache(K, V)
+	cap int
+	ls  list.Element(entry(K, V))
+}
 
 func (p *LRU(K, V)) init(cache *Cache(K, V), maximumSize int) {}
 func (p *LRU(K, V)) add(*entry(K, V)) *entry(K, V)            { return nil }
@@ -39,7 +45,7 @@ type Cache(type K comparable, V any) struct {
 	policy policy(K, V)
 }
 
-func NewCache(type K comparable, V any)(maxkeys uint64, p policy(K, V)) Cache(K, V) {
+func New(type K comparable, V any)(maxkeys uint64, p policy(K, V)) Cache(K, V) {
 	return Cache(K, V){
 		policy: p,
 	}

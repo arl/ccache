@@ -19,8 +19,7 @@ func stackExample() {
 
 func cacheExample() {
 	lru := cache.LRU(int, string){}
-	c := cache.New(256, lru)
-
+	c := cache.New(int, string)(256, &lru)
 	fmt.Println(lru, c)
 }
 
