@@ -1,7 +1,5 @@
 package main
 
-import "fmt"
-
 // entry stores cached entry key and value.
 type entry(type K comparable, V any) struct {
 	key   K
@@ -24,24 +22,14 @@ type policy(type K comparable, V any) interface {
 	init(cache *Cache(K, V), maximumSize int)
 	add(*entry(K, V)) *entry(K, V)
 	del(*entry(K, V)) *entry(K, V)
-	add(*entry(K, V))
 }
 
 // LRU is a least-frequently-used policy.
 type LRU(type K comparable, V any) struct{}
 
-func (p *LRU) init(cache *Cache(K, V), maximumSize int) {
-
-}
-func (p *LRU) add(*entry(K, V)) *entry(K, V) {
-
-}
-func (p *LRU) del(*entry(K, V)) *entry(K, V) {
-
-}
-func (p *LRU) add(*entry(K, V)) {
-
-}
+func (p *LRU(K, V)) init(cache *Cache(K, V), maximumSize int) {}
+func (p *LRU(K, V)) add(*entry(K, V)) *entry(K, V)            { return nil }
+func (p *LRU(K, V)) del(*entry(K, V)) *entry(K, V)            { return nil }
 
 type Cache(type K comparable, V any) struct {
 	policy policy(K, V)
@@ -55,6 +43,7 @@ func NewCache(type K comparable, V any)(maxkeys uint64, p policy(K, V)) Cache(K,
 
 func main() {
 	lru := LRU(int, string){}
-	c := NewCache(256, lru)
-	fmt.Println(lru, c)
+//	c := NewCache(int, string)(256, &lru) // ok: compiles and run
+	c := NewCache(256, &lru) // nok: 'go tool go2go run' panics
+	_ = c
 }
