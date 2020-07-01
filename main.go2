@@ -1,0 +1,17 @@
+package main
+
+import (
+	"fmt"
+
+	"arl.go2/stack"
+)
+
+func main() {
+	s := make(stack.Stack(int), 0)
+	s.Push(0)
+	s.Push(1)
+	s.Push(2)
+	s.Pop()
+
+	fmt.Println(s)
+}
