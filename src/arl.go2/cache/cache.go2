@@ -5,6 +5,7 @@ import (
 	"list"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -14,9 +15,9 @@ type entry(type K comparable, V any) struct {
 	value V
 
 	// accessed is the number of nanoseconds elapsed between the cache epoch and the last time the key was accessed.
-	accessed uint64
+	accessed time.Duration
 	// updated is the number of nanoseconds elapsed between the cache epoch and the last time the key was updated.
-	updated uint64
+	updated time.Duration
 	// // listID is ID of the list which this entry is currently in.
 	// listID listID
 	// hash of this key
@@ -113,7 +114,7 @@ type cache(type K comparable, V any) struct {
 type Cache(type K comparable, V any) interface {
 	// GetIfPresent returns value associated with Key or (nil, false)
 	// if there is no cached value for Key.
-	//	GetIfPresent(K) (V, bool)
+	GetIfPresent(K) (V, bool)
 
 	// Put associates value with Key. If a value is already associated
 	// with Key, the old one will be replaced with Value.
@@ -162,7 +163,7 @@ const (
 )
 
 // currentTime is an alias for time.Now, used for testing.
-var currentTime = time.Now
+var CurrentTime = func() time.Duration { return time.Duration(time.Now().UnixNano()) }
 
 // localCache is an asynchronous LRU cache.
 type localCache(type K comparable, V any) struct {
@@ -172,10 +173,10 @@ type localCache(type K comparable, V any) struct {
 	expireAfterWrite  time.Duration
 	refreshAfterWrite time.Duration
 
-	// onInsertion Func
-	// onRemoval   Func
+	onInsertion func(K, V)
+	onRemoval   func(K, V)
 
-	// loader LoaderFunc
+	loader func(K) (V, error)
 	// stats  StatsCounter
 
 	// internal data structure
@@ -220,7 +221,43 @@ func (c *localCache(K, V)) init() {
 	c.deleteEntry = make(chan (*list.Element(*entry(K, V))), 1)
 
 	c.closeCh = make(chan struct{})
-	// go c.processEntries()
+	go c.processEntries()
+}
+
+func (c *localCache(K, V)) isExpired(en *entry(K, V), now time.Duration) bool {
+	if c.expireAfterAccess > 0 && (time.Duration(en.accessed) < now-c.expireAfterAccess) {
+		return true
+	}
+	if c.expireAfterWrite > 0 && time.Duration(en.updated) < now-c.expireAfterWrite {
+		return true
+	}
+	return false
+}
+
+// GetIfPresent gets cached value from entries list and updates
+// last access time for the entry if it is found.
+func (c *localCache(K, V)) GetIfPresent(k K) (V, bool) {
+	c.cache.mu.RLock()
+	el, hit := c.cache.data[k]
+	c.cache.mu.RUnlock()
+	if !hit {
+		fmt.Println("miss")
+		// c.stats.RecordMisses(1)
+		var zero V
+		return zero, false
+	}
+	en := el.Value
+	if c.isExpired(en, CurrentTime()) {
+		fmt.Println("expired")
+		c.deleteEntry <- el
+		// c.stats.RecordMisses(1)
+		var zero V
+		return zero, false
+	}
+	c.hitEntry <- el
+	// c.stats.RecordHits(1)
+	fmt.Println("hit")
+	return en.value, true
 }
 
 // Put adds new entry to entries list.
@@ -240,6 +277,169 @@ func (c *localCache(K, V)) Put(k K, v V) {
 		}
 		c.addEntry <- en
 	}
+}
+
+func (c *localCache(K, V)) processEntries() {
+	defer close(c.closeCh)
+	for {
+		select {
+		case <-c.closeCh:
+			c.removeAll()
+			return
+		case en := <-c.addEntry:
+			c.add(en)
+			c.postWriteCleanup()
+		case el := <-c.hitEntry:
+			c.hit(el)
+			c.postReadCleanup()
+		case el := <-c.deleteEntry:
+			if el == nil {
+				c.removeAll()
+			} else {
+				c.remove(el)
+			}
+			c.postReadCleanup()
+		}
+	}
+}
+
+func (c *localCache(K, V)) add(en *entry(K, V)) {
+	en.accessed = CurrentTime()
+	en.updated = en.accessed
+
+	remEn := c.entries.add(en)
+	if c.onInsertion != nil {
+		c.onInsertion(en.key, en.value)
+	}
+	if remEn != nil {
+		// An entry has been evicted
+		// c.stats.RecordEviction()
+		if c.onRemoval != nil {
+			c.onRemoval(remEn.key, remEn.value)
+		}
+	}
+}
+
+// removeAll remove all entries in the cache.
+func (c *localCache(K, V)) removeAll() {
+	c.cache.mu.Lock()
+	oldData := c.cache.data
+	c.cache.data = make(map[K](*list.Element(*entry(K, V))))
+	c.entries.init(&c.cache, c.cap)
+	c.cache.mu.Unlock()
+
+	if c.onRemoval != nil {
+		for _, el := range oldData {
+			en := el.Value
+			c.onRemoval(en.key, en.value)
+		}
+	}
+}
+
+// remove removes the given element from the cache and entries list.
+// It also calls onRemoval callback if it is set.
+func (c *localCache(K, V)) remove(el *list.Element(*entry(K, V))) {
+	en := c.entries.del(el)
+
+	if en != nil && c.onRemoval != nil {
+		c.onRemoval(en.key, en.value)
+	}
+}
+
+// hit moves the given element to the top of the entries list.
+func (c *localCache(K, V)) hit(el *list.Element(*entry(K, V))) {
+	el.Value.accessed = CurrentTime()
+	c.entries.hit(el)
+}
+
+// load uses current loader to retrieve value for k and adds new
+// entry to the cache only if loader returns a nil error.
+func (c *localCache(K, V)) load(k K) (V, error) {
+	if c.loader == nil {
+		panic("loader must be set")
+	}
+	// start := CurrentTime()
+	v, err := c.loader(k)
+	// loadTime := CurrentTime() - start
+	if err != nil {
+		// c.stats.RecordLoadError(loadTime)
+		var zero V
+		return zero, err
+	}
+	en := &entry(K, V){
+		key:   k,
+		value: v,
+		hash:  Sum(k),
+	}
+	c.addEntry <- en
+	// c.stats.RecordLoadSuccess(loadTime)
+	return v, nil
+}
+
+// refresh reloads value for the given key. If loader returns an error,
+// that error will be omitted and current value will be returned.
+// Otherwise, the function will returns new value and updates the current
+// cache entry.
+func (c *localCache(K, V)) refresh(en *entry(K, V)) V {
+	if c.loader == nil {
+		panic("loader must be set")
+	}
+	// start := CurrentTime()
+	newV, err := c.loader(en.key)
+	// loadTime := CurrentTime() - start
+	if err != nil {
+		// c.stats.RecordLoadError(loadTime)
+		return en.value
+	}
+	en.value = newV
+	c.addEntry <- en
+	// c.stats.RecordLoadSuccess(loadTime)
+	return newV
+}
+
+// postReadCleanup is run after entry access/delete event.
+func (c *localCache(K, V)) postReadCleanup() {
+	// Number of cache access operations that will trigger clean up.
+	const drainThreshold = 64
+
+	if atomic.AddInt32(&c.readCount, 1) > drainThreshold {
+		atomic.StoreInt32(&c.readCount, 0)
+		c.expireEntries()
+	}
+}
+
+// postWriteCleanup is run after entry add event.
+func (c *localCache(K, V)) postWriteCleanup() {
+	atomic.StoreInt32(&c.readCount, 0)
+	c.expireEntries()
+}
+
+// expireEntries removes expired entries.
+func (c *localCache(K, V)) expireEntries() {
+	if c.expireAfterAccess <= 0 {
+		return
+	}
+	// Maximum number of entries to be drained in a single clean up.
+	const drainMax = 16
+
+	expire := CurrentTime() - c.expireAfterAccess
+	remain := drainMax
+	c.entries.walk(func(ls *list.List(*entry(K, V))) {
+		for ; remain > 0; remain-- {
+			el := ls.Back()
+			if el == nil {
+				// List is empty
+				break
+			}
+			en := el.Value
+			if en.accessed >= expire {
+				// Can break since the entries list is sorted by access time
+				break
+			}
+			c.remove(el)
+			// c.stats.RecordEviction()
+		}
+	})
 }
 
 // hash.go

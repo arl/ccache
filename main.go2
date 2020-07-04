@@ -8,6 +8,9 @@ import (
 
 func main() {
 	c := cache.New(int, string)()
+	v, ok := c.GetIfPresent(1)
+	fmt.Printf("c.GetIfPresent(1) -> %q, %v\n", v, ok)
 	c.Put(1, "hello")
-	fmt.Println(c)
+	v, ok = c.GetIfPresent(1)
+	fmt.Printf("c.GetIfPresent(1) -> %q, %v\n", v, ok)
 }
