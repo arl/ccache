@@ -1,8 +1,11 @@
 package cache
 
 import (
+	"fmt"
 	"list"
+	"math"
 	"sync"
+	"time"
 )
 
 // entry stores cached entry key and value.
@@ -25,7 +28,7 @@ type any interface{}
 
 // policy is a cache eviction policy.
 type policy(type K comparable, V any) interface {
-	init(cache *Cache(K, V), maximumSize int)
+	init(cache *cache(K, V), maxsize int)
 	add(*entry(K, V)) *entry(K, V)
 	del(*list.Element(*entry(K, V))) *entry(K, V)
 	hit(*list.Element(*entry(K, V)))
@@ -34,12 +37,12 @@ type policy(type K comparable, V any) interface {
 
 // LRU is a least-frequently-used policy.
 type LRU(type K comparable, V any) struct {
-	cache *Cache(K, V)
+	cache *cache(K, V)
 	cap   int
 	ls    list.List(*entry(K, V))
 }
 
-func (l *LRU(K, V)) init(cache *Cache(K, V), maxsize int) {
+func (l *LRU(K, V)) init(cache *cache(K, V), maxsize int) {
 	l.cache = cache
 	l.cap = maxsize
 	l.ls.Init()
@@ -99,14 +102,211 @@ func (l *LRU(K, V)) walk(f func(list *list.List(*entry(K, V)))) {
 	f(&l.ls)
 }
 
-type Cache(type K comparable, V any) struct {
+type cache(type K comparable, V any) struct {
 	policy policy(K, V)
-	mu     sync.Mutex
+	mu     sync.RWMutex
 	data   map[K](*list.Element(*entry(K, V)))
 }
 
-func New(type K comparable, V any)(maxkeys uint64, p policy(K, V)) Cache(K, V) {
-	return Cache(K, V){
-		policy: p,
+// Cache is a key-value cache which entries are added and stayed in the
+// cache until either are evicted or manually invalidated.
+type Cache(type K comparable, V any) interface {
+	// GetIfPresent returns value associated with Key or (nil, false)
+	// if there is no cached value for Key.
+	//	GetIfPresent(K) (V, bool)
+
+	// Put associates value with Key. If a value is already associated
+	// with Key, the old one will be replaced with Value.
+	Put(K, V)
+
+	// Invalidate discards cached value of the given Key.
+	//	Invalidate(K)
+
+	// InvalidateAll discards all entries.
+	//	InvalidateAll()
+
+	// Stats copies cache statistics to given Stats pointer.
+	//	Stats(*Stats)
+
+	// Close implements io.Closer for cleaning up all resources.
+	// Once cache is closed, it should no longer be used.
+	//	Close() error
+}
+
+// Option add options for default Cache.
+type Option(type K comparable, V any) func(c *localCache(K, V))
+
+// New returns a local in-memory Cache.
+func New(type K comparable, V any)(options ...Option(K, V)) Cache(K, V) {
+	c := newLocalCache(K, V)()
+	for _, opt := range options {
+		opt(c)
 	}
+	c.init()
+	return c
+}
+
+// func New(type K comparable, V any)(maxkeys uint64, p policy(K, V)) Cache(K, V) {
+// 	return cache(K, V){
+// 		policy: p,
+// 	}
+// }
+
+// local.go
+
+const (
+	// Maximum number of entries to be drained in a single clean up.
+	DrainMax = 16
+	// Number of cache access operations that will trigger clean up.
+	DrainThreshold = 64
+)
+
+// currentTime is an alias for time.Now, used for testing.
+var currentTime = time.Now
+
+// localCache is an asynchronous LRU cache.
+type localCache(type K comparable, V any) struct {
+	// user configurations
+	policyName        string
+	expireAfterAccess time.Duration
+	expireAfterWrite  time.Duration
+	refreshAfterWrite time.Duration
+
+	// onInsertion Func
+	// onRemoval   Func
+
+	// loader LoaderFunc
+	// stats  StatsCounter
+
+	// internal data structure
+	cap   int
+	cache cache(K, V)
+
+	entries     policy(K, V)
+	addEntry    chan *entry(K, V)
+	hitEntry    chan *list.Element(*entry(K, V))
+	deleteEntry chan *list.Element(*entry(K, V))
+
+	// readCount is a counter of the number of reads since the last write.
+	readCount int32
+
+	// for closing routines created by this cache.
+	closeMu sync.Mutex
+	closeCh chan struct{}
+}
+
+// newLocalCache returns a default localCache.
+// init must be called before this cache can be used.
+func newLocalCache(type K comparable, V any)() *localCache(K, V) {
+	const maxcap = 1 << 30
+
+	return &localCache(K, V){
+		cap: maxcap,
+		cache: cache(K, V){
+			data: make(map[K](*list.Element(*entry(K, V)))),
+		},
+		//		stats: &statsCounter{},
+	}
+}
+
+// init initializes cache replacement policy after all user configuration properties are set.
+func (c *localCache(K, V)) init() {
+	///	c.entries = newPolicy(c.policyName)
+	c.entries = &LRU(K, V){}
+	c.entries.init(&c.cache, c.cap)
+
+	c.addEntry = make(chan (*entry(K, V)), 1)
+	c.hitEntry = make(chan (*list.Element(*entry(K, V))), 1)
+	c.deleteEntry = make(chan (*list.Element(*entry(K, V))), 1)
+
+	c.closeCh = make(chan struct{})
+	// go c.processEntries()
+}
+
+// Put adds new entry to entries list.
+func (c *localCache(K, V)) Put(k K, v V) {
+	c.cache.mu.RLock()
+	el, hit := c.cache.data[k]
+	c.cache.mu.RUnlock()
+	if hit {
+		// Update list element value
+		el.Value.value = v
+		c.hitEntry <- el
+	} else {
+		en := &entry(K, V){
+			key:   k,
+			value: v,
+			hash:  Sum(k),
+		}
+		c.addEntry <- en
+	}
+}
+
+// hash.go
+
+const (
+	fnvOffset uint64 = 14695981039346656037
+	fnvPrime  uint64 = 1099511628211
+)
+
+// sum calculates hash value of the given key.
+func Sum(k interface{}) uint64 {
+	switch h := k.(type) {
+	case int:
+		return hashU64(uint64(h))
+	case int8:
+		return hashU64(uint64(h))
+	case int16:
+		return hashU64(uint64(h))
+	case int32:
+		return hashU64(uint64(h))
+	case int64:
+		return hashU64(uint64(h))
+	case uint:
+		return hashU64(uint64(h))
+	case uint8:
+		return hashU64(uint64(h))
+	case uint16:
+		return hashU64(uint64(h))
+	case uint32:
+		return hashU64(uint64(h))
+	case uint64:
+		return hashU64(h)
+	case uintptr:
+		return hashU64(uint64(h))
+	case float32:
+		return hashU64(uint64(math.Float32bits(h)))
+	case float64:
+		return hashU64(math.Float64bits(h))
+	case bool:
+		if h {
+			return hashU64(1)
+		}
+		return hashU64(0)
+	case string:
+		return hashBytes([]byte(h))
+	default:
+		panic(fmt.Sprintf("sum can't hash %T", k))
+	}
+}
+
+func hashU64(v uint64) uint64 {
+	// Inline code from hash/fnv to reduce memory allocations
+	h := fnvOffset
+	for i := uint(0); i < 64; i += 8 {
+		h ^= (v >> i) & 0xFF
+		h *= fnvPrime
+	}
+	return h
+}
+
+// hashBytes calculates hash value using FNV-1a algorithm.
+func hashBytes(data []byte) uint64 {
+	// Inline code from hash/fnv to reduce memory allocations
+	h := fnvOffset
+	for _, b := range data {
+		h ^= uint64(b)
+		h *= fnvPrime
+	}
+	return h
 }
