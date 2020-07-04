@@ -1,6 +1,9 @@
 package cache
 
-import "list"
+import (
+	"list"
+	"sync"
+)
 
 // entry stores cached entry key and value.
 type entry(type K comparable, V any) struct {
@@ -24,25 +27,82 @@ type any interface{}
 type policy(type K comparable, V any) interface {
 	init(cache *Cache(K, V), maximumSize int)
 	add(*entry(K, V)) *entry(K, V)
-	del(*entry(K, V)) *entry(K, V)
-	// hit(element *list.Element)
-	// remove(element *list.Element) *entry
-	// walk(func(list *list.List))
+	del(*list.Element(*entry(K, V))) *entry(K, V)
+	hit(*list.Element(*entry(K, V)))
+	walk(f func(list *list.List(*entry(K, V))))
 }
 
 // LRU is a least-frequently-used policy.
 type LRU(type K comparable, V any) struct {
-	c   *Cache(K, V)
-	cap int
-	ls  list.Element(entry(K, V))
+	cache *Cache(K, V)
+	cap   int
+	ls    list.List(*entry(K, V))
 }
 
-func (p *LRU(K, V)) init(cache *Cache(K, V), maximumSize int) {}
-func (p *LRU(K, V)) add(*entry(K, V)) *entry(K, V)            { return nil }
-func (p *LRU(K, V)) del(*entry(K, V)) *entry(K, V)            { return nil }
+func (l *LRU(K, V)) init(cache *Cache(K, V), maxsize int) {
+	l.cache = cache
+	l.cap = maxsize
+	l.ls.Init()
+}
+
+func (l *LRU(K, V)) add(en *entry(K, V)) *entry(K, V) {
+	l.cache.mu.Lock()
+	defer l.cache.mu.Unlock()
+	return nil
+
+	el := l.cache.data[en.key]
+	if el != nil {
+		// Entry had been added
+		el.Value = en
+		l.ls.MoveToFront(el)
+		return nil
+	}
+	if l.cap <= 0 || l.ls.Len() < l.cap {
+		// Add this entry
+		el = l.ls.PushFront(en)
+		l.cache.data[en.key] = el
+		return nil
+	}
+	// Replace with the last one
+	el = l.ls.Back()
+	if el == nil {
+		// Can happen if cap is zero
+		return en
+	}
+	remEn := el.Value
+	el.Value = en
+	l.ls.MoveToFront(el)
+
+	delete(l.cache.data, remEn.key)
+	l.cache.data[en.key] = el
+	return remEn
+}
+
+func (l *LRU(K, V)) del(el *list.Element(*entry(K, V))) *entry(K, V) {
+	en := el.Value
+	l.cache.mu.Lock()
+	defer l.cache.mu.Unlock()
+
+	if _, ok := l.cache.data[en.key]; !ok {
+		return nil
+	}
+	l.ls.Remove(el)
+	delete(l.cache.data, en.key)
+	return en
+}
+
+func (l *LRU(K, V)) hit(el *list.Element(*entry(K, V))) {
+	l.ls.MoveToFront(el)
+}
+
+func (l *LRU(K, V)) walk(f func(list *list.List(*entry(K, V)))) {
+	f(&l.ls)
+}
 
 type Cache(type K comparable, V any) struct {
 	policy policy(K, V)
+	mu     sync.Mutex
+	data   map[K](*list.Element(*entry(K, V)))
 }
 
 func New(type K comparable, V any)(maxkeys uint64, p policy(K, V)) Cache(K, V) {
