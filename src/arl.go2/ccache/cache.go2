@@ -1,0 +1,91 @@
+package ccache
+
+import (
+	"hash/maphash"
+	"sync"
+)
+
+type Any interface{}
+
+type Cache(type K comparable, V Any) interface {
+	Get(K) (V, bool)
+	Set(K, V)
+	Del(K)
+}
+
+func NewCache(type K comparable, V Any)(cap int, policy Policy(K)) Cache(K, V) {
+	return newCache(K, V)(cap, policy)
+}
+
+type partition(type K comparable, V Any) struct {
+	sync.RWMutex
+	m map[K]V
+	// TODO: cache line padding
+}
+
+const PartCount = 64
+
+type cache(type K comparable, V Any) struct {
+	policy Policy(K)
+	m      [PartCount]partition(K, V)
+	hash   func(*maphash.Hash, interface{}) uint64
+	mh     *maphash.Hash
+}
+
+func newCache(type K comparable, V Any)(cap int, policy Policy(K)) *cache(K, V) {
+	c := &cache(K, V){
+		policy: policy,
+		hash:   hashFunction(K)(),
+		mh:     &maphash.Hash{},
+	}
+
+	// c.mh.SetSeed()
+
+	// Allocate partitions
+	for i := 0; i < PartCount; i++ {
+		part := partition(K, V){m: make(map[K]V, cap/64)}
+		c.m[i] = part
+	}
+
+	return c
+}
+
+/*
+cache should be concurrent:
+so multiple goroutine can get keys as long as nobody is writing
+see, from https://software.intel.com/content/www/us/en/develop/blogs/debugging-performance-issues-in-go-programs.html
+*/
+
+func (c *cache(K, V)) Get(k K) (V, bool) {
+	idx := c.hash(c.mh, k) % PartCount
+	part := &c.m[idx]
+
+	part.RLock()
+	v, ok := part.m[k]
+	part.RUnlock()
+
+	return v, ok
+}
+
+func (c *cache(K, V)) Set(k K, v V) {
+	idx := c.hash(c.mh, k) % PartCount
+	part := &c.m[idx]
+
+	part.Lock()
+	part.m[k] = v
+	part.Unlock()
+}
+
+func (c *cache(K, V)) Del(k K) {
+	idx := c.hash(c.mh, k) % PartCount
+	part := &c.m[idx]
+
+	part.Lock()
+	delete(part.m, k)
+	part.Unlock()
+}
+
+// func (c *cache(K, V)) Close() error {
+// 	close(c.quit)
+// 	return nil
+// }

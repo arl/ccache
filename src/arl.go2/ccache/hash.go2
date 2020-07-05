@@ -1,0 +1,63 @@
+package ccache
+
+import (
+	"hash/maphash"
+)
+
+// hashFunction returns a hash function specific for K
+func hashFunction(type K comparable)() func(*maphash.Hash, interface{}) uint64 {
+	var (
+		k    interface{}
+		zero K
+	)
+	k = zero
+	switch k.(type) {
+	case int:
+		return IntHash
+	case int64:
+		return Int64Hash
+	case []byte:
+		return BytesHash
+	case string:
+		return StringHash
+	}
+	panic("not implemented")
+}
+
+func IntHash(mh *maphash.Hash, k interface{}) uint64 {
+	i := k.(int)
+	b := []byte{byte(0xff & i), byte(0xff & (i >> 8)),
+		byte(0xff & (i >> 16)), byte(0xff & (i >> 24)),
+	}
+
+	mh.Reset()
+	mh.Write(b)
+
+	return mh.Sum64()
+}
+
+func Int64Hash(mh *maphash.Hash, k interface{}) uint64 {
+	i := k.(int64)
+	b := []byte{byte(0xff & i), byte(0xff & (i >> 8)),
+		byte(0xff & (i >> 16)), byte(0xff & (i >> 24)),
+	}
+
+	mh.Reset()
+	mh.Write(b)
+
+	return mh.Sum64()
+}
+
+func BytesHash(mh *maphash.Hash, k interface{}) uint64 {
+	mh.Reset()
+	mh.Write(k.([]byte))
+
+	return mh.Sum64()
+}
+
+func StringHash(mh *maphash.Hash, k interface{}) uint64 {
+	mh.Reset()
+	mh.WriteString(k.(string))
+
+	return mh.Sum64()
+}

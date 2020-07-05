@@ -1,0 +1,10 @@
+package ccache
+
+// Policy is a cache replacement policy.
+type Policy(type K comparable) interface {
+	Insert(K)
+	Touch(K)
+	Remove(K)
+
+	Candidate() (K, bool)
+}
