@@ -1,0 +1,52 @@
+package ccache
+
+// queue is an unbounded queue.
+type queue(type K comparable) struct {
+	q []K
+}
+
+func (q *queue(K)) push(k K) {
+	q.q = append(q.q, k)
+}
+
+func (q *queue(K)) pop() (k K, ok bool) {
+	if len(q.q) == 0 {
+		return k, false
+	}
+
+	k, q.q[0] = q.q[0], k
+	q.q = q.q[1:]
+
+	return k, true
+}
+
+// FIFO is first in first out replacement policy.
+type FIFO(type K comparable) struct {
+	cap int
+	q   queue(K)
+}
+
+// NewFIFO returns a FIFO replacement policy bounded by cap number of items.
+func NewFIFO(type K comparable)(cap int) *FIFO(K) {
+	return &FIFO(K){
+		cap: cap,
+		q:   queue(K){q: make([]K, 0, cap)},
+	}
+}
+
+func (p *FIFO(K)) Insert(k K) {
+
+}
+
+func (p *FIFO(K)) Touch(k K) {
+
+}
+
+func (p *FIFO(K)) Remove(k K) {
+
+}
+
+func (p *FIFO(K)) Candidate() K {
+	var zero K
+	return zero
+}

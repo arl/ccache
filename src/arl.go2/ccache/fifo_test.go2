@@ -1,0 +1,29 @@
+package ccache
+
+import (
+	"testing"
+)
+
+func Test_queue(t *testing.T) {
+	q := queue(int){q: make([]int, 0, 4)}
+
+	for i := 0; i < 8; i++ {
+		q.push(i)
+	}
+
+	for i := 0; i < 8; i++ {
+		v, ok := q.pop()
+		if !ok {
+			t.Fatalf("q.pop(), queue should not be empty")
+		}
+		if v != i {
+			t.Fatalf("q.pop() = (%v, true), want (%v, true)", v, i)
+		}
+	}
+
+	// should be empty now
+	v, ok := q.pop()
+	if ok {
+		t.Fatalf("q.pop(), queue should be empty, got (%v, true)", v)
+	}
+}
