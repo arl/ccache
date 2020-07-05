@@ -40,3 +40,41 @@ func Test_queue(t *testing.T) {
 		t.Fatalf("q.front() = (%v, %v), want (1, true)", v, ok)
 	}
 }
+
+func TestFIFO(t *testing.T) {
+	f := NewFIFO(int)(4)
+	f.Insert(0)
+	f.Insert(1)
+	f.Insert(2)
+	f.Insert(3)
+
+	v, ok := f.Candidate()
+	if !ok || v != 0 {
+		t.Fatalf("f.Candidate() = (%v, %v), want (0, true)", v, ok)
+	}
+
+	const dummy = 0xbaadcafe
+
+	f.Remove(dummy)
+	v, ok = f.Candidate()
+	if !ok || v != 1 {
+		t.Fatalf("f.Candidate() = (%v, %v), want (1, true)", v, ok)
+	}
+
+	f.Insert(4)
+	f.Insert(5)
+	v, ok = f.Candidate()
+	if !ok || v != 2 {
+		t.Fatalf("f.Candidate() = (%v, %v), want (2, true)", v, ok)
+	}
+
+	f.Remove(dummy)
+	f.Remove(dummy)
+	f.Remove(dummy)
+	f.Remove(dummy)
+
+	v, ok = f.Candidate()
+	if ok {
+		t.Fatalf("f.Candidate() = (%v, %v), want empty FIFO (0, false)", v, ok)
+	}
+}

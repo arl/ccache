@@ -43,18 +43,21 @@ func NewFIFO(type K comparable)(cap int) *FIFO(K) {
 }
 
 func (p *FIFO(K)) Insert(k K) {
+	if p.q.len() >= p.cap {
+		p.q.pop()
+	}
 
+	p.q.push(k)
 }
 
-func (p *FIFO(K)) Touch(k K) {
+func (p *FIFO(K)) Touch(k K) {}
 
+func (p *FIFO(K)) Remove(K) {
+	// FIFO policy does not care about which key has been removed.
+	p.q.pop()
 }
 
-func (p *FIFO(K)) Remove(k K) {
-
-}
-
-func (p *FIFO(K)) Candidate() K {
-	var zero K
-	return zero
+func (p *FIFO(K)) Candidate() (k K, ok bool) {
+	k, ok = p.q.front()
+	return k, ok
 }
