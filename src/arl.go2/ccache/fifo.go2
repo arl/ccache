@@ -5,9 +5,17 @@ type queue(type K comparable) struct {
 	q []K
 }
 
-func (q *queue(K)) push(k K) {
-	q.q = append(q.q, k)
+func (q *queue(K)) len() int { return len(q.q) }
+
+func (q *queue(K)) front() (k K, ok bool) {
+	if len(q.q) == 0 {
+		return k, false
+	}
+
+	return q.q[0], true
 }
+
+func (q *queue(K)) push(k K) { q.q = append(q.q, k) }
 
 func (q *queue(K)) pop() (k K, ok bool) {
 	if len(q.q) == 0 {

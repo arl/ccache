@@ -26,4 +26,17 @@ func Test_queue(t *testing.T) {
 	if ok {
 		t.Fatalf("q.pop(), queue should be empty, got (%v, true)", v)
 	}
+
+	v, ok = q.front()
+	if ok {
+		t.Fatalf("q.front(), queue should be empty, got (%v, true)", v)
+	}
+
+	q.push(1)
+	q.push(2)
+
+	v, ok = q.front()
+	if !ok || v != 1 {
+		t.Fatalf("q.front() = (%v, %v), want (1, true)", v, ok)
+	}
 }
