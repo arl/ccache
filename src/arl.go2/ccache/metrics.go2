@@ -1,0 +1,48 @@
+package ccache
+
+import "sync/atomic"
+
+type Metrics struct {
+	Hits   uint64
+	Misses uint64
+	// LoadSuccessCount uint64
+	// LoadErrorCount   uint64
+	// TotalLoadTime    time.Duration
+	// EvictionCount    uint64
+}
+
+func (m *Metrics) IncrHits() {
+	atomic.AddUint64(&m.Hits, 1)
+}
+
+func (m *Metrics) IncrMisses() {
+	atomic.AddUint64(&m.Misses, 1)
+}
+
+func (m *Metrics) Snapshot(dst *Metrics) {
+	dst.Hits = atomic.LoadUint64(&m.Hits)
+	dst.Misses = atomic.LoadUint64(&m.Misses)
+}
+
+// RequestCount returns a total of HitCount and MissCount.
+func (m *Metrics) RequestCount() uint64 {
+	return m.Hits + m.Misses
+}
+
+// HitRate returns the ratio of cache requests which were Hits.
+func (m *Metrics) HitRate() float64 {
+	total := m.RequestCount()
+	if total == 0 {
+		return 1.0
+	}
+	return float64(m.Hits) / float64(total)
+}
+
+// MissRate returns the ratio of cache requests which were Misses.
+func (m *Metrics) MissRate() float64 {
+	total := m.RequestCount()
+	if total == 0 {
+		return 0.0
+	}
+	return float64(m.Misses) / float64(total)
+}

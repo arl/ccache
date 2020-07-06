@@ -11,6 +11,8 @@ type Cache(type K comparable, V Any) interface {
 	Get(K) (V, bool)
 	Set(K, V)
 	Del(K)
+
+	Metrics(*Metrics)
 }
 
 func NewCache(type K comparable, V Any)(cap int, policy Policy(K)) Cache(K, V) {
@@ -26,10 +28,13 @@ type partition(type K comparable, V Any) struct {
 const PartCount = 64
 
 type cache(type K comparable, V Any) struct {
-	policy Policy(K)
 	m      [PartCount]partition(K, V)
-	hash   func(*maphash.Hash, interface{}) uint64
-	mh     *maphash.Hash
+	policy Policy(K)
+
+	metrics Metrics
+
+	hash func(*maphash.Hash, interface{}) uint64
+	mh   *maphash.Hash
 }
 
 func newCache(type K comparable, V Any)(cap int, policy Policy(K)) *cache(K, V) {
@@ -64,6 +69,12 @@ func (c *cache(K, V)) Get(k K) (V, bool) {
 	v, ok := part.m[k]
 	part.RUnlock()
 
+	if !ok {
+		c.metrics.IncrMisses()
+		return v, false
+	}
+
+	c.metrics.IncrHits()
 	return v, ok
 }
 
@@ -83,6 +94,10 @@ func (c *cache(K, V)) Del(k K) {
 	part.Lock()
 	delete(part.m, k)
 	part.Unlock()
+}
+
+func (c *cache(K, V)) Metrics(m *Metrics) {
+	c.metrics.Snapshot(m)
 }
 
 // func (c *cache(K, V)) Close() error {
