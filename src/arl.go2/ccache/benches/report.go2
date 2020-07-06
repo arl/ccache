@@ -1,0 +1,87 @@
+package benches
+
+import (
+	"context"
+	"fmt"
+	"io"
+
+	"arl.go2/ccache"
+)
+
+type Reporter interface {
+	Report(ccache.Metrics, options)
+}
+
+type Provider(type K comparable) interface {
+	Provide(ctx context.Context, keys chan<- K)
+}
+
+type reporter struct {
+	w             io.Writer
+	headerPrinted bool
+}
+
+func NewReporter(w io.Writer) Reporter {
+	return &reporter{w: w}
+}
+
+func (r *reporter) Report(m ccache.Metrics, opt options) {
+	if !r.headerPrinted {
+		fmt.Fprintf(r.w, "Requets,Hits,HitRate,Evictions,CacheSize\n")
+		r.headerPrinted = true
+	}
+	fmt.Fprintf(r.w, "%d,%d,%.04f,%d,%d\n",
+		m.RequestCount(), m.Hits, m.HitRate(), 0, /*m.EvictionCount*/
+		opt.cacheSize)
+}
+
+type options struct {
+	policy         string
+	cacheSize      int
+	reportInterval int
+	maxItems       int
+}
+
+// var policies = []string{
+// 	"lru",
+// 	"slru",
+// 	"tinylfu",
+// }
+
+func benchmarkCache(type K comparable)(p Provider(K), r Reporter, opt options) {
+	// c := cache.New(cache.WithMaximumSize(opt.cacheSize), cache.WithPolicy(opt.policy))
+	// defer c.Close()
+
+	fifo := ccache.NewFIFO(K)(10)
+	c := ccache.NewCache(K, K)(10, fifo)
+
+	keys := make(chan K, 100)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go p.Provide(ctx, keys)
+	metrics := ccache.Metrics{}
+	i := 0
+	for {
+		if opt.maxItems > 0 && i >= opt.maxItems {
+			break
+		}
+		k, ok := <-keys
+		if !ok {
+			break
+		}
+		_, ok = c.Get(k)
+		if !ok {
+			c.Set(k, k)
+		}
+		i++
+		if opt.reportInterval > 0 && i%opt.reportInterval == 0 {
+			c.Metrics(&metrics)
+			r.Report(metrics, opt)
+		}
+	}
+	if opt.reportInterval == 0 {
+		c.Metrics(&metrics)
+		r.Report(metrics, opt)
+	}
+}
