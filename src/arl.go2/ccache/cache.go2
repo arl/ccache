@@ -28,7 +28,6 @@ type partition(type K comparable, V Any) struct {
 	// TODO: cache line padding
 }
 
-const PartCount = 64
 
 type option(type K comparable, V Any) func(*cache(K, V))
 
@@ -43,6 +42,8 @@ func WithPolicy(type K comparable, V Any)(name string) option(K, V) {
 		c.policyName = name
 	}
 }
+
+const PartCount = 64
 
 type cache(type K comparable, V Any) struct {
 	m          [PartCount]partition(K, V)
