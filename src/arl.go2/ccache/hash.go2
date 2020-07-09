@@ -1,11 +1,12 @@
 package ccache
 
 import (
+	"fmt"
 	"hash/maphash"
 )
 
 // hashFunction returns a hash function specific for K
-func hashFunction(type K comparable)() func(*maphash.Hash, interface{}) uint64 {
+func hashFunction(type K comparable)() (func(*maphash.Hash, interface{}) uint64, error) {
 	var (
 		k    interface{}
 		zero K
@@ -13,15 +14,15 @@ func hashFunction(type K comparable)() func(*maphash.Hash, interface{}) uint64 {
 	k = zero
 	switch k.(type) {
 	case int:
-		return IntHash
+		return IntHash, nil
 	case int64:
-		return Int64Hash
+		return Int64Hash, nil
 	case []byte:
-		return BytesHash
+		return BytesHash, nil
 	case string:
-		return StringHash
+		return StringHash, nil
 	}
-	panic("not implemented")
+	return nil, fmt.Errorf("no hash function defined for %T", zero)
 }
 
 func IntHash(mh *maphash.Hash, k interface{}) uint64 {

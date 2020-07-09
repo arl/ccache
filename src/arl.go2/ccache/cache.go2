@@ -2,6 +2,7 @@ package ccache
 
 import (
 	"hash/maphash"
+	"strings"
 	"sync"
 )
 
@@ -15,7 +16,9 @@ type Cache(type K comparable, V Any) interface {
 	Metrics(*Metrics)
 }
 
-func New(type K comparable, V Any)(opts ...option(K, V))  Cache(K, V) {
+// TODO: same issue than with braces and newCache, we had to put those braces but
+// not sure why.
+func New(type K comparable, V Any)(opts ...option(K, V)) ((Cache(K, V)), error) {
 	return newCache(K, V)(opts...)
 }
 
@@ -27,23 +30,25 @@ type partition(type K comparable, V Any) struct {
 
 const PartCount = 64
 
-type option (type K comparable, V Any) func (*cache(K, V))
+type option(type K comparable, V Any) func(*cache(K, V))
 
-func WithMaxCapacity(type K comparable, V Any)(cap int) option(K,V) {
-	return func(c*cache(K, V)) {
+func WithCapacity(type K comparable, V Any)(cap int) option(K, V) {
+	return func(c *cache(K, V)) {
 		c.cap = cap
 	}
 }
 
-func WithPolicy(type K comparable, V Any)(p Policy(K)) option(K,V) {
-	return func(c*cache(K, V)) {
-		c.policy = p
+func WithPolicy(type K comparable, V Any)(name string) option(K, V) {
+	return func(c *cache(K, V)) {
+		c.policyName = name
 	}
 }
 
 type cache(type K comparable, V Any) struct {
-	m      [PartCount]partition(K, V)
-	cap int
+	m          [PartCount]partition(K, V)
+	cap        int
+	policyName string
+
 	policy Policy(K)
 
 	metrics Metrics
@@ -51,22 +56,37 @@ type cache(type K comparable, V Any) struct {
 	hash func(*maphash.Hash, interface{}) uint64
 	mh   *maphash.Hash
 }
-// (cap int, policy Policy(K)
-func newCache(type K comparable, V Any)(opts ...option(K, V)) *cache(K, V) {
-	const defaultCapacity = 32*1024
+
+// TODO: investigate and/or fill a bug because we had to place braces around
+// the return value
+func newCache(type K comparable, V Any)(opts ...option(K, V)) (*cache(K, V), error) {
+	const defaultCapacity = 32 * 1024
+
+	hashfn, err := hashFunction(K)()
+	if err != nil {
+		return nil, err
+	}
 
 	c := &cache(K, V){
-		cap: defaultCapacity,
-		policy: NewFIFO(K)(defaultCapacity),
-		hash:   hashFunction(K)(),
-		mh:     &maphash.Hash{},
+		hash: hashfn,
+		mh:   &maphash.Hash{},
 	}
 
+	// Handle options and default values
 	for _, opt := range opts {
-		_ = opt
+		opt(c)
 	}
 
-	// c.mh.SetSeed()
+	if c.cap == 0 {
+		c.cap = defaultCapacity
+	}
+
+	switch strings.ToLower(c.policyName) {
+	case "":
+		fallthrough
+	case "fifo":
+		c.policy = NewFIFO(K)(c.cap)
+	}
 
 	// Allocate partitions
 	for i := 0; i < PartCount; i++ {
@@ -74,7 +94,7 @@ func newCache(type K comparable, V Any)(opts ...option(K, V)) *cache(K, V) {
 		c.m[i] = part
 	}
 
-	return c
+	return c, nil
 }
 
 /*

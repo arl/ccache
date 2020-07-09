@@ -2,17 +2,21 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"arl.go2/ccache"
 )
 
 func main() {
-	fifo := ccache.NewFIFO(string)(10)
-	// cache := ccache.NewCache(string, string)(10, fifo)
-	cache := ccache.New(string, string)(
-		ccache.WithMaxCapacity(string, string)(32),
-		ccache.WithPolicy(string, string)(fifo),
+	// https://github.com/vpetrigo/caches/blob/master/include/fifo_cache_policy.hpp
+	cache, err := ccache.New(string, string)(
+		ccache.WithCapacity(string, string)(32),
+		ccache.WithPolicy(string, string)("FIFO"),
 	)
+	if err != nil {
+		fmt.Print(err)
+		os.Exit(1)
+	}
 	cache.Set("hello", "world")
 	v, ok := cache.Get("hello")
 	fmt.Printf("cache.Get(%q) = (%q, %v)\n", "hello", v, ok)
