@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
+	"testing"
 
 	"arl.go2/ccache"
 )
@@ -28,7 +28,7 @@ func NewReporter(w io.Writer) Reporter {
 
 func (r *reporter) Report(m ccache.Metrics, opt options) {
 	if !r.headerPrinted {
-		fmt.Fprintf(r.w, "Requets,Hits,HitRate,Evictions,CacheSize\n")
+		fmt.Fprintf(r.w, "Requests,Hits,HitRate,Evictions,CacheSize\n")
 		r.headerPrinted = true
 	}
 	fmt.Fprintf(r.w, "%d,%d,%.04f,%d,%d\n",
@@ -50,7 +50,7 @@ var policies = []string{
 	// "tinylfu",
 }
 
-func benchmarkCache(type K comparable)(p Provider(K), r Reporter, opt options) {
+func benchmarkCache(type K comparable)(tb testing.TB, p Provider(K), r Reporter, opt options) {
 	// c := cache.New(cache.WithMaximumSize(opt.cacheSize), cache.WithPolicy(opt.policy))
 	// defer c.Close()
 
@@ -59,9 +59,7 @@ func benchmarkCache(type K comparable)(p Provider(K), r Reporter, opt options) {
 		ccache.WithPolicy(K, K)(opt.policy),
 	)
 	if err != nil {
-		// TODO: use testing.TB here
-		fmt.Print(err)
-		os.Exit(1)
+		tb.Fatalf("ccache.New() error: %v", err)
 	}
 
 	keys := make(chan K, 100)

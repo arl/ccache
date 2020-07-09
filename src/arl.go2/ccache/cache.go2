@@ -28,7 +28,6 @@ type partition(type K comparable, V Any) struct {
 	// TODO: cache line padding
 }
 
-
 type option(type K comparable, V Any) func(*cache(K, V))
 
 func WithCapacity(type K comparable, V Any)(cap int) option(K, V) {
@@ -60,7 +59,7 @@ type cache(type K comparable, V Any) struct {
 
 // TODO: investigate and/or fill a bug because we had to place braces around
 // the return value
-func newCache(type K comparable, V Any)(opts ...option(K, V)) (*cache(K, V), error) {
+func newCache(type K comparable, V Any)(opts ...option(K, V)) ((*cache(K, V)), error) {
 	const defaultCapacity = 32 * 1024
 
 	hashfn, err := hashFunction(K)()
