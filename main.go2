@@ -3,28 +3,20 @@ package main
 import (
 	"fmt"
 
-	"arl.go2/cache"
 	"arl.go2/ccache"
 )
 
 func main() {
-	// exampleCache()
-	exampleCCache()
-}
-
-func exampleCache() {
-	c := cache.New(int, string)()
-	v, ok := c.GetIfPresent(1)
-	fmt.Printf("c.GetIfPresent(1) -> %q, %v\n", v, ok)
-	c.Put(1, "hello")
-	v, ok = c.GetIfPresent(1)
-	fmt.Printf("c.GetIfPresent(1) -> %q, %v\n", v, ok)
-}
-
-func exampleCCache() {
 	fifo := ccache.NewFIFO(string)(10)
-	cache := ccache.NewCache(string, string)(10, fifo)
+	// cache := ccache.NewCache(string, string)(10, fifo)
+	cache := ccache.New(string, string)(
+		ccache.WithMaxCapacity(string, string)(32),
+		ccache.WithPolicy(string, string)(fifo),
+	)
 	cache.Set("hello", "world")
 	v, ok := cache.Get("hello")
+	fmt.Printf("cache.Get(%q) = (%q, %v)\n", "hello", v, ok)
+	cache.Del("hello")
+	v, ok = cache.Get("hello")
 	fmt.Printf("cache.Get(%q) = (%q, %v)\n", "hello", v, ok)
 }

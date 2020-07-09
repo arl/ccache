@@ -15,8 +15,8 @@ type Cache(type K comparable, V Any) interface {
 	Metrics(*Metrics)
 }
 
-func NewCache(type K comparable, V Any)(cap int, policy Policy(K)) Cache(K, V) {
-	return newCache(K, V)(cap, policy)
+func New(type K comparable, V Any)(opts ...option(K, V))  Cache(K, V) {
+	return newCache(K, V)(opts...)
 }
 
 type partition(type K comparable, V Any) struct {
@@ -27,8 +27,23 @@ type partition(type K comparable, V Any) struct {
 
 const PartCount = 64
 
+type option (type K comparable, V Any) func (*cache(K, V))
+
+func WithMaxCapacity(type K comparable, V Any)(cap int) option(K,V) {
+	return func(c*cache(K, V)) {
+		c.cap = cap
+	}
+}
+
+func WithPolicy(type K comparable, V Any)(p Policy(K)) option(K,V) {
+	return func(c*cache(K, V)) {
+		c.policy = p
+	}
+}
+
 type cache(type K comparable, V Any) struct {
 	m      [PartCount]partition(K, V)
+	cap int
 	policy Policy(K)
 
 	metrics Metrics
@@ -36,19 +51,26 @@ type cache(type K comparable, V Any) struct {
 	hash func(*maphash.Hash, interface{}) uint64
 	mh   *maphash.Hash
 }
+// (cap int, policy Policy(K)
+func newCache(type K comparable, V Any)(opts ...option(K, V)) *cache(K, V) {
+	const defaultCapacity = 32*1024
 
-func newCache(type K comparable, V Any)(cap int, policy Policy(K)) *cache(K, V) {
 	c := &cache(K, V){
-		policy: policy,
+		cap: defaultCapacity,
+		policy: NewFIFO(K)(defaultCapacity),
 		hash:   hashFunction(K)(),
 		mh:     &maphash.Hash{},
+	}
+
+	for _, opt := range opts {
+		_ = opt
 	}
 
 	// c.mh.SetSeed()
 
 	// Allocate partitions
 	for i := 0; i < PartCount; i++ {
-		part := partition(K, V){m: make(map[K]V, cap/64)}
+		part := partition(K, V){m: make(map[K]V, c.cap/64)}
 		c.m[i] = part
 	}
 
