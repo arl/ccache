@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 
 	"arl.go2/ccache"
 )
@@ -42,18 +43,26 @@ type options struct {
 	maxItems       int
 }
 
-// var policies = []string{
-// 	"lru",
-// 	"slru",
-// 	"tinylfu",
-// }
+var policies = []string{
+	"fifo",
+	// "lru",
+	// "slru",
+	// "tinylfu",
+}
 
 func benchmarkCache(type K comparable)(p Provider(K), r Reporter, opt options) {
 	// c := cache.New(cache.WithMaximumSize(opt.cacheSize), cache.WithPolicy(opt.policy))
 	// defer c.Close()
 
-	fifo := ccache.NewFIFO(K)(10)
-	c := ccache.NewCache(K, K)(10, fifo)
+	c, err := ccache.New(K, K)(
+		ccache.WithCapacity(K, K)(opt.cacheSize),
+		ccache.WithPolicy(K, K)(opt.policy),
+	)
+	if err != nil {
+		// TODO: use testing.TB here
+		fmt.Print(err)
+		os.Exit(1)
+	}
 
 	keys := make(chan K, 100)
 	ctx, cancel := context.WithCancel(context.Background())
