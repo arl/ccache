@@ -53,7 +53,7 @@ type cache(type K comparable, V Any) struct {
 
 	metrics Metrics
 
-	hash func(*maphash.Hash, interface{}) uint64
+	hash func(*maphash.Hash, K) uint64
 	mh   *maphash.Hash
 }
 
@@ -62,13 +62,8 @@ type cache(type K comparable, V Any) struct {
 func newCache(type K comparable, V Any)(opts ...option(K, V)) ((*cache(K, V)), error) {
 	const defaultCapacity = 32 * 1024
 
-	hashfn, err := hashFunction(K)()
-	if err != nil {
-		return nil, err
-	}
-
 	c := &cache(K, V){
-		hash: hashfn,
+		hash: hashFunction(K)(),
 		mh:   &maphash.Hash{},
 	}
 

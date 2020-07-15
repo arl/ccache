@@ -5,28 +5,25 @@ import (
 	"hash/maphash"
 )
 
+// castTo casts t from interface{} to T.
+func castTo(type T)(t interface{}) T { return t.(T) }
+
 // hashFunction returns a hash function specific for K
-func hashFunction(type K comparable)() (func(*maphash.Hash, interface{}) uint64, error) {
-	var (
-		k    interface{}
-		zero K
-	)
-	k = zero
-	switch k.(type) {
+func hashFunction(type K comparable)() (func(*maphash.Hash, K) uint64) {
+	var v K
+	switch (interface{})(v).(type) {
 	case int:
-		return IntHash, nil
+		return castTo(func(*maphash.Hash, K) uint64)(IntHash)
 	case int64:
-		return Int64Hash, nil
-	case []byte:
-		return BytesHash, nil
+		return castTo(func(*maphash.Hash, K) uint64)(Int64Hash)
 	case string:
-		return StringHash, nil
+		return castTo(func(*maphash.Hash, K) uint64)(StringHash)
+	default:
+		panic(fmt.Sprintf("hash function unimplemented for type %T", v))
 	}
-	return nil, fmt.Errorf("no hash function defined for %T", zero)
 }
 
-func IntHash(mh *maphash.Hash, k interface{}) uint64 {
-	i := k.(int)
+func IntHash(mh *maphash.Hash, i int) uint64 {
 	b := []byte{byte(0xff & i), byte(0xff & (i >> 8)),
 		byte(0xff & (i >> 16)), byte(0xff & (i >> 24)),
 	}
@@ -37,8 +34,7 @@ func IntHash(mh *maphash.Hash, k interface{}) uint64 {
 	return mh.Sum64()
 }
 
-func Int64Hash(mh *maphash.Hash, k interface{}) uint64 {
-	i := k.(int64)
+func Int64Hash(mh *maphash.Hash, i int64) uint64 {
 	b := []byte{byte(0xff & i), byte(0xff & (i >> 8)),
 		byte(0xff & (i >> 16)), byte(0xff & (i >> 24)),
 	}
@@ -49,16 +45,9 @@ func Int64Hash(mh *maphash.Hash, k interface{}) uint64 {
 	return mh.Sum64()
 }
 
-func BytesHash(mh *maphash.Hash, k interface{}) uint64 {
+func StringHash(mh *maphash.Hash, k string) uint64 {
 	mh.Reset()
-	mh.Write(k.([]byte))
-
-	return mh.Sum64()
-}
-
-func StringHash(mh *maphash.Hash, k interface{}) uint64 {
-	mh.Reset()
-	mh.WriteString(k.(string))
+	mh.WriteString(k)
 
 	return mh.Sum64()
 }
