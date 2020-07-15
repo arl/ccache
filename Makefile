@@ -17,3 +17,6 @@ test: ## Run ccache benchmarks and generate reports
 	cd ./src/arl.go2/ccache/benches && mv out.png requests.png
 	cd ./src/arl.go2/ccache/benches && ./visualize-size.sh size_wikipedia-fifo.txt
 	cd ./src/arl.go2/ccache/benches && mv out.png size.png
+
+run: ## run main program
+	go tool go2go run main.go2
