@@ -3,6 +3,7 @@ package ccache
 import (
 	"fmt"
 	"hash/maphash"
+	"sync"
 )
 
 // castTo casts t from interface{} to T.
@@ -28,10 +29,14 @@ func hashFunction(type K comparable)() func(K) uint64 {
 }
 
 type IntHash struct {
+	sync.Mutex
 	Mh *maphash.Hash
 }
 
 func (h *IntHash) Hash(i int) uint64 {
+	h.Lock()
+	defer h.Unlock()
+
 	b := []byte{byte(0xff & i), byte(0xff & (i >> 8)),
 		byte(0xff & (i >> 16)), byte(0xff & (i >> 24)),
 	}
@@ -43,10 +48,14 @@ func (h *IntHash) Hash(i int) uint64 {
 }
 
 type Int64Hash struct {
+	sync.Mutex
 	Mh *maphash.Hash
 }
 
 func (h *Int64Hash) Hash(i int64) uint64 {
+	h.Lock()
+	defer h.Unlock()
+
 	b := []byte{byte(0xff & i), byte(0xff & (i >> 8)),
 		byte(0xff & (i >> 16)), byte(0xff & (i >> 24)),
 	}
@@ -58,10 +67,14 @@ func (h *Int64Hash) Hash(i int64) uint64 {
 }
 
 type StringHash struct {
+	sync.Mutex
 	Mh *maphash.Hash
 }
 
 func (h *StringHash) Hash(k string) uint64 {
+	h.Lock()
+	defer h.Unlock()
+
 	h.Mh.Reset()
 	h.Mh.WriteString(k)
 
