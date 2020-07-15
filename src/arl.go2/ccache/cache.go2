@@ -1,7 +1,6 @@
 package ccache
 
 import (
-	"hash/maphash"
 	"strings"
 	"sync"
 )
@@ -53,18 +52,16 @@ type cache(type K comparable, V Any) struct {
 
 	metrics Metrics
 
-	hash func(*maphash.Hash, K) uint64
-	mh   *maphash.Hash
+	hash func(K) uint64
 }
 
 // TODO: investigate and/or fill a bug because we had to place braces around
 // the return value
-func newCache(type K comparable, V Any)(opts ...option(K, V)) ((*cache(K, V)), error) {
+func newCache(type K comparable, V Any)(opts ...option(K, V)) (*cache(K, V), error) {
 	const defaultCapacity = 32 * 1024
 
 	c := &cache(K, V){
 		hash: hashFunction(K)(),
-		mh:   &maphash.Hash{},
 	}
 
 	// Handle options and default values
@@ -99,7 +96,7 @@ see, from https://software.intel.com/content/www/us/en/develop/blogs/debugging-p
 */
 
 func (c *cache(K, V)) Get(k K) (V, bool) {
-	idx := c.hash(c.mh, k) % PartCount
+	idx := c.hash(k) % PartCount
 	part := &c.m[idx]
 
 	part.RLock()
@@ -116,7 +113,7 @@ func (c *cache(K, V)) Get(k K) (V, bool) {
 }
 
 func (c *cache(K, V)) Set(k K, v V) {
-	idx := c.hash(c.mh, k) % PartCount
+	idx := c.hash(k) % PartCount
 	part := &c.m[idx]
 
 	part.Lock()
@@ -125,7 +122,7 @@ func (c *cache(K, V)) Set(k K, v V) {
 }
 
 func (c *cache(K, V)) Del(k K) {
-	idx := c.hash(c.mh, k) % PartCount
+	idx := c.hash(k) % PartCount
 	part := &c.m[idx]
 
 	part.Lock()
