@@ -1,6 +1,6 @@
 .PHONY: clean
 
-help:
+help: ## This help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 clean: ## Clean go2go generated files and test artifacts
@@ -18,5 +18,5 @@ test: ## Run ccache benchmarks and generate reports
 	cd ./src/arl.go2/ccache/benches && ./visualize-size.sh size_wikipedia-fifo.txt
 	cd ./src/arl.go2/ccache/benches && mv out.png size.png
 
-run: ## run main program
+run: ## Run main program
 	go tool go2go run main.go2
